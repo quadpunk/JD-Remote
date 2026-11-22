@@ -1,7 +1,7 @@
 {
-  "name": "JD-Xi Remote",
-  "short_name": "JD-Xi",
-  "description": "Web MIDI remote for the Roland JD-Xi",
+  "name": "JD-Xi / JD-XA Remote",
+  "short_name": "JD-X",
+  "description": "Web MIDI remote for the Roland JD-Xi and JD-XA",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -129,7 +129,7 @@ class MidiEngine(ctx: Context) {
         val out = defaultSend()
         status = when {
             out != null -> "MIDI: ${out.name}"
-            list.isEmpty() -> "No MIDI device found. Connect the JD-Xi with a USB cable."
+            list.isEmpty() -> "No MIDI device found. Connect the JD-Xi or JD-XA with a USB cable."
             else -> "MIDI device found, but no output port could be opened"
         }
         onPortsChanged?.invoke()
@@ -143,7 +143,7 @@ class MidiEngine(ctx: Context) {
 
     private fun defaultSend(): PortRef? {
         val sendable = ports.filter { it.sendable && sendPorts.containsKey(it.id) }
-        return sendable.firstOrNull { Regex("JD.?-?Xi|Roland", RegexOption.IGNORE_CASE).containsMatchIn(it.name) && !it.name.contains("through", true) }
+        return sendable.firstOrNull { Regex("JD.?-?X[ia]|Roland", RegexOption.IGNORE_CASE).containsMatchIn(it.name) && !it.name.contains("through", true) }
             ?: sendable.firstOrNull { !it.name.contains("through", true) }
             ?: sendable.firstOrNull()
     }

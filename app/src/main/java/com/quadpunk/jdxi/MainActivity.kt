@@ -91,6 +91,8 @@ class MainActivity : ComponentActivity() {
                 when {
                     customView != null -> hideCustomView()
                     tab != 0 -> web.evaluateJavascript("window.__jdxiShowPage&&window.__jdxiShowPage('performance')", null)
+                    // landing page -> JD-Xi / JD-XA page: Back returns to the landing page before the app closes
+                    web.canGoBack() -> web.goBack()
                     else -> { isEnabled = false; onBackPressedDispatcher.onBackPressed() }
                 }
             }
@@ -149,6 +151,11 @@ class MainActivity : ComponentActivity() {
             addJavascriptInterface(WebMidiBridge(engine, this, ::saveToDownloads, ::onWebPageChanged), "AndroidMidi")
 
             webViewClient = object : WebViewClient() {
+                // a new page (landing / JD-Xi / JD-XA) always starts with the web UI on top, never under the native sequencer
+                override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
+                    tab = 0
+                }
+
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
                     loader.shouldInterceptRequest(request.url)
 

@@ -22,6 +22,10 @@ function logMidi(dir,bytes){if(bytes[0]===0xfe||bytes[0]===0xf8)return;log(dir+'
 
 /* ---------- sending ---------- */
 function send(bytes){
+ // Only the dedicated XA controller is allowed to transmit in XA mode.
+ // Prevents JD-Xi sequencer timeouts, MIDI player and UI actions leaking across models.
+ if(window.JDModel?.current()==='xa'&&!window.JDXAOutbound){log('Blocked inactive JD-Xi transmitter in JD-XA mode');return false}
+ if(window.JDModel?.current()==='xa'&&bytes[0]===0xf0&&bytes[1]===0x41&&bytes[6]!==0x0f){log('Blocked wrong-model SysEx');return false}
  if(!output||output.state!=='connected'){log('MIDI output not connected');return false}
  if(bytes[0]===0xf0&&!sysexAllowed){log('SysEx blocked: the browser did not grant SysEx permission. Allow MIDI for this site, reload and reconnect.');return false}
  try{output.send(bytes);logMidi('OUT',bytes);try{window.JDXiViz?.midi(bytes)}catch{}return true}
@@ -43,7 +47,7 @@ async function envReport(){
 }
 
 /* ---------- ports ---------- */
-const isJd=p=>/JD.?-?Xi|Roland/i.test(p?.name||'');
+const isJd=p=>window.JDModel?.current()==='xa'?/JD.?-?XA/i.test(p?.name||''):/JD.?-?Xi|Roland/i.test(p?.name||'');
 const isThrough=p=>/through/i.test(p?.name||'');
 function pickPort(ports,wantedId){return ports.find(x=>wantedId&&x.id===wantedId)||ports.find(x=>isJd(x)&&!isThrough(x))||ports.find(x=>!isThrough(x))||ports[0]}
 function populateMidiPorts(){
@@ -99,13 +103,14 @@ function handleMidiEvent(e){
  }
 }
 function onMidiMessage(data,time){
+ if(window.JDModel?.current()==='xa'){logMidi('IN',data);window.JDXA?.receive(data,time);return}
  window.JDXiTransfer?.receive(data,time);
  logMidi('IN',data);
  try{window.JDXiViz?.midi(data)}catch{}
  for(const fn of [applyEditorReply,m=>window.JDXiPerformanceReceive?.(m)]){try{fn(data)}catch(err){log('Handler error: '+err.message)}}
  if(data[0]===0xf0&&data[1]===0x41){clearTimeout(replyTimer);replyTimer=null;setDiag('JD-Xi SysEx reply received on "'+(input?.name||'input')+'": two-way communication works.')}
 }
-function autoRead(){if(output&&input&&sysexAllowed){try{$('readblock').click();setTimeout(()=>{try{$('arpread').click()}catch(e){log(e.message)}},150);setTimeout(()=>{try{$('arp-read-parts').click()}catch(e){log(e.message)}},450)}catch(e){log(e.message)}}}
+function autoRead(){if(window.JDModel?.current()==='xa')return;if(output&&input&&sysexAllowed){try{$('readblock').click();setTimeout(()=>{try{$('arpread').click()}catch(e){log(e.message)}},150);setTimeout(()=>{try{$('arp-read-parts').click()}catch(e){log(e.message)}},450)}catch(e){log(e.message)}}}
 
 /* ---------- buttons ---------- */
 $('midi-refresh').onclick=async()=>{try{await getMidiAccess()}catch(e){midiDiagnostics(e.message,true)}};
@@ -125,7 +130,7 @@ $('connect').onclick=async()=>{
   }
   status('Connected: '+output.name);
   midiDiagnostics('Connected. Output: "'+output.name+'" · input: '+(input?'"'+input.name+'"':'NONE')+' · SysEx: '+(sysexAllowed?'allowed':'NOT allowed')+'. Try "Send test note" or "Test JD-Xi reply".',!sysexAllowed||!input);
-  setTimeout(()=>{autoRead();setTimeout(()=>ovRead(true),600)},300);
+  if(window.JDModel?.current()!=='xa')setTimeout(()=>{autoRead();setTimeout(()=>ovRead(true),600)},300);
   window.dispatchEvent(new Event('jdxi-connected'));
  }catch(e){status('Connection failed');midiDiagnostics(e.message,true)}
 };
@@ -135,6 +140,7 @@ $('midi-note').onclick=()=>{
  if(send([0x90|ch,60,100])){midiDiagnostics('Sent test note C4 on channel '+(ch+1)+' to "'+output.name+'". If silent: check the JD-Xi part is on/unmuted and receives on that channel.');setTimeout(()=>send([0x80|ch,60,0]),400)}
 };
 $('midi-test').onclick=()=>{
+ if(window.JDModel?.current()==='xa'){document.getElementById('xa-test').click();return}
  if(!output){midiDiagnostics('Connect MIDI first.',true);return}
  if(!input){midiDiagnostics('No MIDI input is open: select the JD-Xi input and press Connect again.',true);return}
  if(!sysexAllowed){midiDiagnostics('SysEx permission was not granted, so the JD-Xi cannot answer. Allow MIDI + SysEx for this site (lock icon in the address bar), reload and reconnect.',true);return}
@@ -436,7 +442,7 @@ window.JDXiPerformance={send,stop,filePlaying:()=>midiPlaying,connected:()=>!!ou
  rq1:(addr,len)=>{try{return sendEditor(17,addr,[0,0,(len>>7)&127,len&127])}catch(e){log(e.message);return false}},
  bases:editorBases,lastPatch:part=>lastPatch[part]||null,clearLastPatch:part=>{delete lastPatch[part]},refreshOverview:part=>{if($('ovpart').value===part)ovRead(true)},
  hasSysex:()=>sysexAllowed,hasInput:()=>!!input,readback:()=>editorReadback,onReply:fn=>{replyListeners.push(fn)},
- sendAt:(bytes,ts)=>{if(!output||output.state!=='connected')return false;try{output.send(bytes,ts);if(bytes[0]!==0xf8)logMidi('OUT',bytes);return true}catch(e){log('Send failed: '+e.message);return false}}};
+ sendAt:(bytes,ts)=>{if(window.JDModel?.current()==='xa'&&bytes[0]===0xf0&&bytes[6]!==0x0f)return false;if(!output||output.state!=='connected')return false;try{output.send(bytes,ts);if(bytes[0]!==0xf8)logMidi('OUT',bytes);return true}catch(e){log('Send failed: '+e.message);return false}}};
 
 
 /* ---------- DX7 import: parse -> plan (dx7.js) -> send as DT1 to the active temporary tone of Digital 1/2 ---------- */

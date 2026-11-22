@@ -69,6 +69,8 @@ document.addEventListener('click',e=>{
 /* The "Step sequencer" tab is replaced by the native sequencer: when it is chosen the page collapses to header + tab strip
    and tells the app how tall that is; the app then shows its own sequencer underneath. */
 (()=>{
+/* The native sequencer is the 4-track JD-Xi sequencer. On the JD-XA page the web sequencer (16 tracks) stays in charge. */
+if(/jdxa\.html$/i.test(location.pathname))return;
 const st=document.createElement('style');
 st.textContent='body.native-seq main,body.native-seq footer,body.native-seq #mixer,body.native-seq #viz:not(.full){display:none!important}body.native-seq{min-height:0!important;overflow:hidden}#install-btn,#install-tip{display:none!important}';
 document.documentElement.appendChild(st);

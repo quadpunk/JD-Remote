@@ -20,6 +20,7 @@ const effective=i=>{const s=st[i];if(s.mute)return 0;if(anySolo()&&!s.solo)retur
 const managed=i=>st[i].touched||st[i].mute||anySolo();
 
 function write(i,force){
+ if(window.JDModel?.current()==='xa')return false;
  const a=api();if(!a?.connected()){status('Connect MIDI first.');return false}
  const v=effective(i);if(!force&&st[i].sent===v)return true;
  const ok=a.hasSysex()?a.dt1(PARTS[i].addr,[v]):a.send([0xb0|PARTS[i].ch,7,v]);
@@ -59,6 +60,7 @@ function build(){
 
 /* ---- read levels back ---- */
 function readAll(){
+ if(window.JDModel?.current()==='xa')return;
  const a=api();
  if(!a?.connected()){status('Connect MIDI first.');return}
  if(!a.hasSysex()||!a.hasInput()){status('Reading levels needs SysEx permission and a MIDI input; the faders still send CC#7.');return}
@@ -87,7 +89,7 @@ window.JDXiMixer={levels:()=>PARTS.map((p,i)=>({name:p.name,level:st[i].level,ef
   PARTS.forEach((p,i)=>{
    st[i].sent=null;                          /* the program change reset the synth's level */
    if(keep&&managed(i))write(i,true);
-   else{if(a.hasSysex()&&a.hasInput()){a.readback().delete(p.addr);setTimeout(()=>a.rq1(p.addr,1),i*70)}}
+   else{if(a.hasSysex()&&a.hasInput()){a.readback().delete(p.addr);setTimeout(()=>a.rq1(p.addr,1),i*120)}}
   });
   paint();
  },Math.max(0,delayMs||0));

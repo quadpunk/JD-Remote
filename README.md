@@ -97,6 +97,33 @@ Features include:
 
 This makes it possible to create longer musical arrangements from existing JD-Xi patterns and move between sections during a live performance.
 
+#### Pattern chaining: switch lead and Measure
+
+A Program Change makes the JD-Xi stop its sequencer and load a whole program, which takes roughly 100-150 ms. The app therefore sends Bank Select + Program Change a short time (*Switch lead*) before the downbeat and sends Start on the downbeat.
+
+- The default Switch lead is now 170 ms (it was 30 ms, which was shorter than the program load time). A stored old default of 30 is replaced automatically.
+- **Measure** (app clock mode) plays a few test switches on the first slot, times the first note that comes back and sets the Switch lead to the shortest lead that still gave a clean start, plus a 15 ms margin.
+- Clock and pump timers run in a Web Worker so they are not throttled when the page is busy or hidden.
+- The mixer read-back after a pattern change now happens 1.6 s later, 120 ms apart, so it no longer lands on the start of the new pattern.
+- The "went quiet" auto-stop waits at least 3 s or 1.5 bars.
+- After every switch the status line shows the time from the downbeat to the first note (also in `window.JDXiSwitchLog`).
+
+Details and measurements: [docs/PATTERN_SWITCH_NOTES.md](docs/PATTERN_SWITCH_NOTES.md).
+
+### Landing page and JD-XA support
+
+The app opens on a landing page where you choose **JD-Xi** or **JD-XA** (the last used synth is marked). A model switch at the top of each page changes between the two, and Back from the synth page returns to the landing page.
+
+The JD-XA page is the Remote for the Roland JD-XA, using Roland model ID 0F:
+
+- Eight parts (4 analog + 4 digital) with an 8-part mixer and visualizer.
+- Programs INT/USB A01-P16 for pattern chaining (Bank Select MSB 85).
+- 16-track step sequencer in the web page, with MIDI file export.
+- FX, tone editor and patch browser, patch read/backup/verify, SysEx inspector.
+- Punch In pads using documented JD-XA Temporary Program addresses.
+
+The native Kotlin step sequencer is the 4-track JD-Xi sequencer and is only used on the JD-Xi page. See [docs/JD-XA_README.md](docs/JD-XA_README.md) for the JD-XA feature list and its limits. The JD-XA support has not been verified on a physical JD-XA.
+
 ### Patch Management
 
 Manage your own sounds directly from the app.
@@ -163,7 +190,7 @@ JD-Xi Remote communicates with the synthesizer through a direct USB connection.
 **Requirements:**
 
 - Android device running Android 7.0 or newer.
-- Roland JD-Xi synthesizer.
+- Roland JD-Xi or JD-XA synthesizer.
 - USB cable and USB-OTG adapter, or a compatible USB-C connection.
 - Android device with USB host support.
 

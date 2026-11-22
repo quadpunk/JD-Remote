@@ -12,6 +12,36 @@ const ls={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:v}catch
 const valid=s=>/^[A-H](0[1-9]|[1-5][0-9]|6[0-4])$/.test(s);
 const clamp=(v,a,b,d)=>Number.isFinite(v)?Math.max(a,Math.min(b,v)):d;
 const status=t=>{$('perfstatus').textContent=t};
+/* Measure the REAL switch time: run an app clock, send PC, send Start `lead` ms later and time the first note that comes back.
+   Starts with a long lead (reference), then shortens it until the first note is late or missing. */
+let calTimer=null;
+function calNote(m){if(!cal||!cal.probe||m.length<3)return;if((m[0]&0xf0)===0x90&&m[2]>0&&cal.probe.d==null){const d=performance.now()-cal.probe.Ts;if(d>=-5)cal.probe.d=Math.max(0,d)}}
+function calibrate(){const a=api();
+ if(!a?.connected()||!a.hasInput()){status('Measuring needs MIDI in and out.');return}
+ if(S.running||cal)return;
+ if(mode()!=='app'){status('Set Clock to the app clock first (the synth must be Sync = SLAVE).');return}
+ const i=S.last??0,pm=progMsgs(slots[i].code,chan()),bpm=clamp(+$('perfbpm').value,40,240,120),tick=60000/bpm/24,c0=performance.now()+60;
+ /* a late Start does not shift the first note a little: the synth starts one step (a 16th) late, so half a 16th is a safe pass limit */
+ const plan=[200,200,170,150,130,115,100,85,70,50,30],tol=Math.max(12,7500/bpm);let nextT=c0,pi=0,ref=null,fails=0,lastOk=null,bad=null;const refs=[],out=[];
+ cal={probe:null};$('perfcal').disabled=true;
+ calTimer=tickEvery(()=>{const now=performance.now();while(nextT<now+70){a.sendAt([0xf8],nextT);nextT+=tick}},20);
+ const end=()=>{calTimer.stop();calTimer=null;a.sendAt([0xfc],performance.now()+5);cal=null;$('perfcal').disabled=false;
+  if(bad){status(bad);return}
+  if(ref==null){status('No note came back after Start ('+slots[i].code+'). The first slot needs a pattern with notes; the synth must be Sync = SLAVE with MIDI out of the parts on.');return}
+  const lead=clamp(lastOk+15,10,500,170);$('perflead').value=lead;ls.set('jdxi-perf-lead',String(lead));
+  status('Measured first note after Start: '+out.join(' · ')+'. Shortest lead that still worked: '+lastOk+' ms. Switch lead set to '+lead+' ms (the synth cuts the last '+lead+' ms of the old pattern, about '+(lead/(15000/bpm)).toFixed(1)+' sixteenth notes at '+bpm+' BPM).')};
+ const trial=L=>{a.sendAt([0xfc],performance.now()+5);const now=performance.now(),Ts=c0+tick*Math.ceil((now+L+300-c0)/tick);
+  a.sendAt(pm[0],Ts-L-24);a.sendAt(pm[1],Ts-L-12);a.sendAt(pm[2],Ts-L);a.sendAt([0xfa],Ts);cal.probe={Ts,d:null};
+  status('Measuring switch time: lead '+L+' ms ('+(pi+1)+'/'+plan.length+')…');
+  setTimeout(()=>{const d=cal?cal.probe.d:null;if(!cal)return;cal.probe=null;res(L,d)},Math.max(0,Ts-performance.now())+1800)};
+ const step=()=>{pi++;if(pi>=plan.length)end();else trial(plan[pi])};
+ const res=(L,d)=>{out.push(L+' ms → '+(d==null?'no note':Math.round(d)+' ms'));
+  if(pi<2){if(d==null){end();return}refs.push(d);lastOk=L;
+   if(pi===1){if(Math.abs(refs[0]-refs[1])>tol){bad='The two reference runs disagree ('+Math.round(refs[0])+' vs '+Math.round(refs[1])+' ms), so the pattern does not start the same way each time. Try again or use another first slot.';end();return}ref=(refs[0]+refs[1])/2}
+   step();return}
+  if(d!=null&&d<=ref+tol){fails=0;lastOk=L;step()}else if(fails<1){fails++;out.pop();trial(L)}else end()};
+ trial(plan[0])}
+
 
 /* ---- slots ---- */
 /* Stock patterns until the user changes them: A01–A06. Slots saved by an earlier version that still hold the old
@@ -37,10 +67,12 @@ const chan=()=>+$('perfchan').value-1;
 window.JDXiProgramMessages=code=>progMsgs(code,chan());
 function launchNow(code){
  const a=api();if(!a?.connected()){status('Connect MIDI first');return false}
- const m=progMsgs(code,chan());a.send(m[0]);setTimeout(()=>a.send(m[1]),12);setTimeout(()=>a.send(m[2]),24);window.JDXiMixer?.afterProgramChange(450);return true;
+ const m=progMsgs(code,chan());a.send(m[0]);setTimeout(()=>a.send(m[1]),12);setTimeout(()=>a.send(m[2]),24);window.JDXiMixer?.afterProgramChange(1600);return true;
 }
 
 /* ---- state ---- */
+let probe=null;const switchLog=[];window.JDXiSwitchLog=switchLog;
+let cal=null;
 const S={running:false,ext:null,cur:null,curBars:null,last:null,sent:null,k:0,patStart:0,patStartT:0,nextT:0,tickMs:20.8,timer:null,lastTickAt:0};
 /* queue of patterns that follow the current one: [{i: slot index, bars: how long it plays before the next one}] */
 const queue=[];
@@ -51,6 +83,10 @@ window.JDXiPerfEpoch=()=>progEpoch;
 let clockUntil=0;
 window.JDXiClockReadyAt=()=>clockUntil;
 const mode=()=>$('perfmode').value;
+/* Clock/pump timers run in a Web Worker: hidden or busy pages throttle setInterval (down to 1 Hz), which makes the clock stall. */
+function tickEvery(fn,ms){let w=null;try{w=new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),'+ms+')'],{type:'text/javascript'})));w.onmessage=()=>{try{fn()}catch(e){console.error(e)}};}catch(e){w=null}
+ if(!w){const id=setInterval(fn,ms);return{stop(){clearInterval(id)}}}
+ return{stop(){w.onmessage=null;w.terminate()}}}
 /* Start watchdog: after START / ▶ Play from this app, the JD-Xi must send some MIDI (notes, CC...) within 1 s,
    otherwise it is probably in Master sync mode (or not listening) and we stop instead of pretending to play. */
 let watchUntil=0;
@@ -63,6 +99,7 @@ function resetActivity(){
  idleHits=0;idleHitAt=-Infinity;attacks=0;lastAttack=-Infinity;lastMusicAt=0;
 }
 function trackActivity(m,st,ch){
+ if(cal)return;
  if(mode()!=='app'||!$('perfidle').checked||window.JDXiSteps?.playing()||![0,1,2,9].includes(ch))return;
  const now=performance.now();
  if(!S.running){
@@ -81,7 +118,7 @@ function trackActivity(m,st,ch){
 }
 
 function transition(k,t){
- if(S.sent!==null){resetActivity();const e=queue[0]&&queue[0].i===S.sent?queue.shift():null;S.cur=S.sent;S.curBars=e?e.bars:bars(S.sent);S.last=S.cur;S.sent=null;
+ if(S.sent!==null){probe={t,code:slots[S.sent].code,lead:clamp(+$('perflead').value,0,500,170)};resetActivity();const e=queue[0]&&queue[0].i===S.sent?queue.shift():null;S.cur=S.sent;S.curBars=e?e.bars:bars(S.sent);S.last=S.cur;S.sent=null;
   if($('perfrestart').checked){if(mode()==='app')sendTransport(0xfa,t);}}
  S.ext=null;S.patStart=k;S.patStartT=t;
  render();
@@ -97,7 +134,7 @@ function appStart(idx,nb){
  S.k=0;S.patStart=0;S.patStartT=t0;S.nextT=t0;S.running=true;
  watchUntil=$('perfidle').checked?t0+WATCH_MS:0;
  sendTransport(0xfa,t0);
- S.timer=setInterval(appPump,20);
+ S.timer=tickEvery(appPump,20);
  status('Playing from this app’s clock · '+clamp(+$('perfbpm').value,40,240,120)+' BPM');
  render();
 }
@@ -109,7 +146,7 @@ function appPump(){
   watchUntil=0;stopEngine(true);render();
   status('Stopped: no MIDI came back from the JD-Xi within 1 s. Is it in Master sync mode or not listening? (Set Sync to SLAVE.)');return;
  }
- if(attacks>=3&&performance.now()-lastMusicAt>=Math.max(1000,48*tickMs)){
+ if(attacks>=3&&performance.now()-lastMusicAt>=Math.max(3000,144*tickMs)){
   stopEngine(true);render();status('Stopped after the incoming pattern went quiet (no MIDI Stop received).');return;
  }
  // Rebase on a delayed callback. Only advance the sequencer for clocks actually sent.
@@ -117,14 +154,14 @@ function appPump(){
  if(S.nextT<now){S.patStartT+=now-S.nextT;S.nextT=now}
  while(S.nextT<now+70){
   const k=S.k,t=S.nextT,boundary=S.patStart+curBars()*96;
-  const leadMs=clamp(+$('perflead').value,0,500,30),leadTicks=Math.max(1,Math.round(leadMs/tickMs));
+  const leadMs=clamp(+$('perflead').value,0,500,170),leadTicks=Math.max(1,Math.round(leadMs/tickMs));
   a.sendAt([0xf8],t);
   if(S.sent===null&&nextIdx()!==null&&k>=boundary-leadTicks-4&&k<boundary-1){
    /* the program change lands `leadMs` before the downbeat of the next pattern */
    const target=Math.max(t+(boundary-k)*tickMs-leadMs,performance.now()+30);
    const m=progMsgs(slots[nextIdx()].code,chan());
    a.sendAt(m[0],target-24);a.sendAt(m[1],target-12);a.sendAt(m[2],target);
-   window.JDXiMixer?.afterProgramChange(Math.max(0,target-performance.now())+450);
+   window.JDXiMixer?.afterProgramChange(Math.max(0,target-performance.now())+1600);
    S.sent=nextIdx();render();
   }
   if(k===boundary)transition(k,t);
@@ -135,16 +172,16 @@ function appPump(){
 // Keep a slave ready for its panel Play button without sending Start or advancing the UI.
 function idleClock(){
  if(window.JDXiTransfer?.busy())return;
- if(S.running||mode()!=='app'||!$('perfstandby').checked||window.JDXiSteps?.playing()||!api()?.connected())return;
+ if(cal||S.running||mode()!=='app'||!$('perfstandby').checked||window.JDXiSteps?.playing()||!api()?.connected())return;
  const now=performance.now(),tick=60000/clamp(+$('perfbpm').value,40,240,120)/24;
  clockUntil=Math.max(now,clockUntil);
  while(clockUntil<now+45){api().sendAt([0xf8],clockUntil);clockUntil+=tick}
 }
-setInterval(idleClock,20);
+tickEvery(idleClock,20);
 function panelStart(now){
  watchUntil=0;
  S.running=true;S.k=0;S.patStart=0;S.patStartT=now;S.nextT=Math.max(now,clockUntil);
- S.timer=setInterval(appPump,20);appPump();render();
+ S.timer=tickEvery(appPump,20);appPump();render();
 }
 /* ---- follow the JD-Xi's own clock ---- */
 /* Only Start needs echo suppression. Stop is idempotent and must always take effect. */
@@ -160,7 +197,7 @@ function remoteStop(){
  resetActivity();
  // A timestamped Start already queued at the MIDI output can still fire after a panel Stop.
  if(mode()==='app'&&lastStartAt>performance.now())sendTransport(0xfc,lastStartAt);
- clearInterval(S.timer);S.timer=null;
+ if(S.timer)S.timer.stop();S.timer=null;
  S.running=false;S.sent=null;
  try{window.JDXiViz?.transport(false)}catch{}
  status(mode()==='app'?'Stopped on the JD-Xi.':'JD-Xi clock: stopped');render();
@@ -184,7 +221,7 @@ function realtime(b){
   S.lastTickAt=now;
   if(mode()!=='follow'||!S.running)return;
   S.k++;
-  const boundary=S.patStart+curBars()*96,leadTicks=Math.max(1,Math.round((clamp(+$('perflead').value,0,500,30)+24)/S.tickMs));
+  const boundary=S.patStart+curBars()*96,leadTicks=Math.max(1,Math.round((clamp(+$('perflead').value,0,500,170)+24)/S.tickMs));
   if(S.sent===null&&nextIdx()!==null&&S.k>=boundary-leadTicks&&S.k<boundary){if(launchNow(slots[nextIdx()].code)){S.sent=nextIdx();render()}}
   if(S.k>=boundary)transition(boundary,now);
  }else if(b===0xfa&&mode()==='follow'){S.running=true;S.lastTickAt=now;S.k=0;S.patStart=0;S.patStartT=now;S.sent=null;render()}
@@ -211,6 +248,11 @@ function remoteProgram(code){
 window.JDXiPerformanceReceive=m=>{
  if(window.JDXiTransfer?.busy())return;
  if(!m||!m.length)return;
+ if(cal){calNote(m);return}
+ if(probe&&(m[0]&0xf0)===0x90&&m[2]>0&&(m[0]&15)!==15){const d=Math.round(performance.now()-probe.t);
+  if(d>=0&&d<1500){switchLog.push({code:probe.code,lead:probe.lead,firstNoteMs:d});if(switchLog.length>20)switchLog.shift();
+   status('Switch to '+probe.code+': first note '+d+' ms after the downbeat (lead '+probe.lead+' ms)'+(d>45?' - the synth was still busy, raise Switch lead or press Measure.':'.'))}
+  probe=null}
  if(m.length===1){realtime(m[0]);return}
  const st=m[0]&0xf0,ch=m[0]&15;
  if(watchUntil&&m[0]>=0x80&&m[0]<0xf0)watchUntil=0;   /* the JD-Xi is answering: it is listening */
@@ -228,7 +270,7 @@ function stopEngine(sendStop){
  watchUntil=0;
  ignoreIdleUntil=performance.now()+300;
  resetActivity();
- clearInterval(S.timer);S.timer=null;
+ if(S.timer)S.timer.stop();S.timer=null;
  /* clock ticks are queued up to ~120 ms ahead and cannot be recalled, so Stop goes out after the last queued tick */
  if(sendStop&&S.running){sendTransport(0xfc,mode()==='app'?Math.max(performance.now(),S.nextT):0)}
  const was=S.running;
@@ -370,7 +412,8 @@ setInterval(tickUi,80);
 for(let n=1;n<=16;n++){const o=document.createElement('option');o.value=n;o.textContent='Channel '+n;$('perfchan').append(o)}
 $('perfchan').value=ls.get('jdxi-performance-channel','1');$('perfchan').onchange=()=>ls.set('jdxi-performance-channel',$('perfchan').value);
 $('perfbpm').value=ls.get('jdxi-perf-bpm','120');$('perfbpm').onchange=()=>{$('perfbpm').value=clamp(Math.round(+$('perfbpm').value),40,240,120);ls.set('jdxi-perf-bpm',$('perfbpm').value)};
-$('perflead').value=ls.get('jdxi-perf-lead','30');$('perflead').onchange=()=>ls.set('jdxi-perf-lead',$('perflead').value);
+/* default raised from 30 ms: the JD-Xi needs roughly 100-150 ms to load a program; a stored 30 is the old default and is replaced */
+$('perflead').value=(()=>{const v=ls.get('jdxi-perf-lead',null);return v==null||v==='30'?'170':v})();$('perfcal').onclick=calibrate;$('perflead').onchange=()=>ls.set('jdxi-perf-lead',$('perflead').value);
 $('perfrestart').checked=ls.get('jdxi-perf-restart','true')==='true';$('perfrestart').onchange=()=>ls.set('jdxi-perf-restart',$('perfrestart').checked);
 $('perfmode').value=ls.get('jdxi-perf-mode','app');
 $('perfidle').checked=ls.get('jdxi-perf-idle-stop','true')==='true';
