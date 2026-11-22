@@ -2,24 +2,24 @@
 <p align="center">
   <img
     src="https://github.com/user-attachments/assets/5bbbf0cc-18fa-4696-aebb-1d595308bffb"
-    alt="Retro JD-Xi Remote Synth Banner"
+    alt="JD-Remote Synth Banner"
     width="100%"
   />
 </p>
 
-# JD-Xi Remote
+# JD-Remote
 
 **A powerful MIDI controller, sound editor, performance tool and step sequencer for the Roland JD-Xi, with beta support for the Roland JD-XA.**
 
-JD-Xi Remote brings deeper control of your Roland synthesizer to your Android phone or tablet. Edit sounds, control effects, manage patches, create sequences and perform live using an interface designed to make the hardware more accessible and enjoyable.
+JD-Remote brings deeper control of your Roland synthesizer to your Android phone or tablet. Edit sounds, control effects, manage patches, create sequences and perform live using an interface designed to make the hardware more accessible and enjoyable.
 
 ## 🌐 Web App & Downloads
 
 ### Web App — No Installation Required
 
-**Use JD-Xi Remote directly in your browser on any supported platform!**
+**Use JD-Remote directly in your browser on supported platforms!**
 
-### [🚀 Launch JD-Xi Remote Web App](https://jdxi-remote.wasmer.app/)
+### [🚀 Launch JD-Remote Web App](https://jdxi-remote.wasmer.app/)
 
 No installation required. Web MIDI support and a compatible browser are needed for direct MIDI communication.
 
@@ -27,7 +27,7 @@ No installation required. Web MIDI support and a compatible browser are needed f
 
 Download the latest Android APK from GitHub:
 
-**[📥 Download JD-Xi Remote for Android](https://github.com/quadpunk/JD-XI-Remote/releases)**
+**[📥 Download JD-Remote for Android](https://github.com/quadpunk/JD-Remote/releases)**
 
 > [!IMPORTANT]
 > **Experiencing freezes or USB connection issues?**
@@ -39,7 +39,7 @@ Download the latest Android APK from GitHub:
 <p align="center">
   <img
     src="https://github.com/user-attachments/assets/f773ddb4-96bf-4a07-927b-c616f8f5698e"
-    alt="JD-Xi Remote"
+    alt="JD-Remote"
     width="600"
   />
 </p>
@@ -48,9 +48,9 @@ Download the latest Android APK from GitHub:
 
 ## 🎹 Overview
 
-JD-Xi Remote communicates directly with the synthesizer over USB MIDI, using standard MIDI messages and Roland SysEx for detailed parameter control.
+JD-Remote communicates directly with the synthesizer over USB MIDI, using standard MIDI messages and Roland SysEx for detailed parameter control.
 
-Whether you're designing sounds, building patterns or performing live, JD-Xi Remote gives you more hands-on control without constantly navigating the synthesizer's small display and menus.
+Whether you're designing sounds, building patterns or performing live, JD-Remote gives you more hands-on control without constantly navigating the synthesizer's small display and menus.
 
 ### Key Features
 
@@ -134,7 +134,7 @@ Designed for quick adjustments during sound design, rehearsals and live performa
 
 ### 🎼 Native 4-Track Step Sequencer (JD-Xi)
 
-JD-Xi Remote includes a native Android step sequencer built with **Kotlin and Jetpack Compose**.
+JD-Remote includes a native Android step sequencer built with **Kotlin and Jetpack Compose**.
 
 The sequencer follows the JD-Xi's four-part architecture.
 
@@ -298,7 +298,7 @@ The Remote interface includes a visualizer for displaying animated audio-related
 
 ### 🎨 Customizable Interface
 
-JD-Xi Remote offers several visual themes to suit different preferences and environments.
+JD-Remote offers several visual themes to suit different preferences and environments.
 
 #### Available Themes
 
@@ -400,7 +400,7 @@ When reporting JD-XA issues, please include:
 
 ## 🔌 USB MIDI Connection
 
-JD-Xi Remote communicates with the synthesizer through a direct USB connection.
+JD-Remote communicates with the synthesizer through a direct USB connection.
 
 ### Android Requirements
 
@@ -414,7 +414,7 @@ JD-Xi Remote communicates with the synthesizer through a direct USB connection.
 1. Connect the synthesizer to your Android device using a suitable USB cable or OTG adapter.
 2. Make sure the synthesizer is powered on.
 3. Configure the JD-Xi to use Generic USB MIDI driver mode if necessary.
-4. Open JD-Xi Remote.
+4. Open JD-Remote.
 5. Select your synthesizer model.
 6. Allow USB MIDI access when Android requests permission.
 
@@ -435,7 +435,7 @@ JD-Xi commands are not sent while you are on the JD-XA page.
 
 ## 🛠️ How the App Works
 
-JD-Xi Remote combines two technologies within one Android application.
+JD-Remote combines two technologies within one Android application.
 
 ### Web-Based Remote Interface
 
@@ -474,7 +474,7 @@ The result is a powerful companion interface for hardware synthesizer control.
 
 ## 👥 Who Is It For?
 
-JD-Xi Remote is designed for a wide range of musicians and synthesizer enthusiasts.
+JD-Remote is designed for a wide range of musicians and synthesizer enthusiasts.
 
 **Sound Designers**
 
@@ -497,7 +497,7 @@ Discover more of your synthesizer's capabilities through visual parameter editin
 Use an Android phone or tablet as an additional controller in your hardware setup.
 
 > [!NOTE]
-> JD-Xi Remote is a companion application for the physical Roland synthesizer.
+> JD-Remote is a companion application for the physical Roland synthesizer.
 >
 > It is **not** a standalone software synthesizer or a replacement for the hardware sound engine.
 
@@ -524,7 +524,7 @@ Functionality may depend on the Android device, USB implementation, browser comp
 
 ## 🚧 Project Status
 
-JD-Xi Remote is an independently developed project.
+JD-Remote is an independently developed project.
 
 | Component | Status |
 |-----------|--------|
@@ -542,7 +542,7 @@ Features and compatibility may evolve as development continues.
 
 Feedback, bug reports and feature suggestions are welcome through GitHub Issues.
 
-**[🐛 Report a Bug or Suggest a Feature](https://github.com/quadpunk/JD-XI-Remote/issues)**
+**[🐛 Report a Bug or Suggest a Feature](https://github.com/quadpunk/JD-Remote/issues)**
 
 For JD-XA reports, please include your firmware version and an exported MIDI log if possible.
 
@@ -550,7 +550,7 @@ For JD-XA reports, please include your firmware version and an exported MIDI log
 
 ## ⚖️ Disclaimer
 
-JD-Xi Remote is an independent, unofficial application.
+JD-Remote is an independent, unofficial application.
 
 It is **not affiliated with, endorsed by or sponsored by Roland Corporation**.
 
@@ -563,7 +563,7 @@ All trademarks belong to their respective owners.
 ---
 
 <p align="center">
-  <strong>JD-Xi Remote</strong>
+  <strong>JD-Remote</strong>
 </p>
 
 <p align="center">
@@ -573,7 +573,7 @@ All trademarks belong to their respective owners.
 <p align="center">
   <a href="https://jdxi-remote.wasmer.app/">Launch Web App</a>
   &nbsp;•&nbsp;
-  <a href="https://github.com/quadpunk/JD-XI-Remote/releases">Download Android App</a>
+  <a href="https://github.com/quadpunk/JD-Remote/releases">Download Android App</a>
   &nbsp;•&nbsp;
-  <a href="https://github.com/quadpunk/JD-XI-Remote/issues">Report an Issue</a>
+  <a href="https://github.com/quadpunk/JD-Remote/issues">Report an Issue</a>
 </p>
