@@ -1,0 +1,36 @@
+/* Motion: sweeping page changes, folding sections, drop-down panels.
+   Everything here is progressive: without View Transitions / Web Animations support, or with the system
+   setting "reduce motion" / "remove animations", pages and panels simply switch instantly as before. */
+
+/* chevron flips at the start of a folding animation (same look as .collapsed) */
+.fold-head.folding::after{transform:translateY(-50%) rotate(-45deg)}
+:root[data-theme=droid] .fold-head.folding{border-radius:14px}
+
+/* ---- tab -> tab: the page sweeps sideways (direction follows the tab order) ---- */
+@media (prefers-reduced-motion:no-preference){
+ :root[data-vt-dir] main>.page.active{view-transition-name:jd-page}
+ :root[data-vt-dir]::view-transition-old(root),
+ :root[data-vt-dir]::view-transition-new(root){animation:none;mix-blend-mode:normal}
+ :root[data-vt-dir]::view-transition-group(jd-page){animation-duration:.3s;animation-timing-function:cubic-bezier(.22,.8,.24,1)}
+ :root[data-vt-dir=fwd]::view-transition-old(jd-page){animation:jd-out-l .26s cubic-bezier(.4,0,.8,.4) both}
+ :root[data-vt-dir=fwd]::view-transition-new(jd-page){animation:jd-in-r .34s cubic-bezier(.22,.8,.24,1) both}
+ :root[data-vt-dir=back]::view-transition-old(jd-page){animation:jd-out-r .26s cubic-bezier(.4,0,.8,.4) both}
+ :root[data-vt-dir=back]::view-transition-new(jd-page){animation:jd-in-l .34s cubic-bezier(.22,.8,.24,1) both}
+}
+@keyframes jd-out-l{to{opacity:0;transform:translateX(-16%)}}
+@keyframes jd-in-r{from{opacity:0;transform:translateX(16%)}}
+@keyframes jd-out-r{to{opacity:0;transform:translateX(16%)}}
+@keyframes jd-in-l{from{opacity:0;transform:translateX(-16%)}}
+
+/* ---- landing <-> JD-Xi <-> JD-XA: soft rise and fade between documents ---- */
+@view-transition{navigation:auto}
+@media (prefers-reduced-motion:no-preference){
+ :root:not([data-vt-dir])::view-transition-old(root){animation:jd-doc-out .16s ease-in both}
+ :root:not([data-vt-dir])::view-transition-new(root){animation:jd-doc-in .34s cubic-bezier(.22,.8,.24,1) both}
+}
+@keyframes jd-doc-out{to{opacity:0;transform:translateY(-10px) scale(.99)}}
+@keyframes jd-doc-in{from{opacity:0;transform:translateY(16px)}}
+
+@media (prefers-reduced-motion:reduce){
+ ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none!important}
+}

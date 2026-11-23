@@ -7,9 +7,9 @@ const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify(saved))}catch{}};
 
 function makeToggle(head,body,id){
  head.classList.add('fold-head');head.tabIndex=0;head.setAttribute('role','button');
- const set=collapsed=>{body.hidden=collapsed;head.classList.toggle('collapsed',collapsed);head.setAttribute('aria-expanded',String(!collapsed))};
+ const set=collapsed=>{body.hidden=collapsed;head.classList.toggle('collapsed',collapsed);head.classList.remove('folding');head.setAttribute('aria-expanded',String(!collapsed))};
  set(!!saved[id]);
- const toggle=()=>{const c=!body.hidden;set(c);if(c)saved[id]=1;else delete saved[id];persist()};
+ const toggle=()=>{const c=!(body.hidden||head.classList.contains('folding'));if(!(window.JDMotion&&window.JDMotion.fold(head,body,c,set)))set(c);if(c)saved[id]=1;else delete saved[id];persist()};
  head.addEventListener('click',toggle);
  head.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}});
 }

@@ -28,6 +28,11 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -109,8 +114,14 @@ class MainActivity : ComponentActivity() {
                         modifier = if (tab == 1) Modifier.fillMaxWidth().height(webTopHeight.dp)
                                    else Modifier.fillMaxWidth().weight(1f),
                     )
-                    if (tab == 1) {
-                        Column(Modifier.weight(1f).fillMaxWidth().background(Jd.bg)) {
+                    // the native sequencer sweeps in from the right (same direction as the web tabs); leaving is instant
+                    AnimatedVisibility(
+                        visible = tab == 1,
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        enter = fadeIn(tween(220)) + slideInHorizontally(tween(300)) { it / 6 },
+                        exit = ExitTransition.None,
+                    ) {
+                        Column(Modifier.fillMaxSize().background(Jd.bg)) {
                             Text(engine.status, fontSize = 12.sp, color = Jd.textLo, modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp))
                             SequencerScreen(seq, tablet)
                         }

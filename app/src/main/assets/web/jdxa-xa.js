@@ -3,7 +3,7 @@
 const $=id=>document.getElementById(id), api=()=>window.JDXiPerformance;
 const get=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
-let model='xi';try{localStorage.setItem('jd-remote-model','"xi"')}catch{}
+let model='xa';
 const names=['ANALOG 1','ANALOG 2','ANALOG 3','ANALOG 4','DIGITAL 1','DIGITAL 2','DIGITAL 3','DIGITAL 4','MIDI CTRL 1','MIDI CTRL 2','MIDI CTRL 3','MIDI CTRL 4','MIDI CTRL 5','MIDI CTRL 6','MIDI CTRL 7','MIDI CTRL 8'];
 const parts=names.map((name,i)=>({name,ch:i,volume:100,pan:64,expression:127,mod:0,hold:false,note: i<4?48+i*3:i<8?60+(i-4)*3:60}));
 let pattern=names.map(()=>Array(64).fill(false));let timer=null,step=0,held=[];let pending=null;
