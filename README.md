@@ -1,9 +1,9 @@
 <img width="1772" height="524" alt="Retro JD-XI Remote Synth Banner" src="https://github.com/user-attachments/assets/5bbbf0cc-18fa-4696-aebb-1d595308bffb" />
 
 # Webapp also available without install for all platforms:
-# https://jdxi-remote.wasmer.app/
+# https://jd-remote.wasmer.app/
 
-# JD-Xi Remote for Android
+# JD Remote for Android
 Download is under [releases](https://github.com/quadpunk/JD-XI-Remote/releases)
 
 Freeze issue? Remember to use Generic USB setting on JD-XI
