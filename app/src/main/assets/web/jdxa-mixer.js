@@ -60,7 +60,7 @@ function readAll(){
  if(!a?.connected()){status('Connect MIDI first.');return}
  if(!a.hasSysex()||!a.hasInput()){status('Reading levels needs SysEx permission and a MIDI input; the faders still send CC#7.');return}
  status('Reading part levels…');
- PARTS.forEach((p,i)=>setTimeout(()=>a.rq1(p.addr,1),i*70));
+ PARTS.forEach((p,i)=>setTimeout(()=>a.rq1(p.addr-9,0x4f),i*70));
  setTimeout(()=>{const got=PARTS.filter(p=>a.readback().has(p.addr)).length;status(got===PARTS.length?'Levels read from the JD-XA.':'Read '+got+' of '+PARTS.length+' part levels.')},PARTS.length*70+500);
 }
 function onReply(base,len){
@@ -84,7 +84,7 @@ window.JDXiMixer={levels:()=>PARTS.map((p,i)=>({name:p.name,level:st[i].level,ef
   PARTS.forEach((p,i)=>{
    st[i].sent=null;                          /* the program change reset the synth's level */
    if(keep&&managed(i))write(i,true);
-   else{if(a.hasSysex()&&a.hasInput()){a.readback().delete(p.addr);setTimeout(()=>a.rq1(p.addr,1),i*120)}}
+   else{if(a.hasSysex()&&a.hasInput()){a.readback().delete(p.addr);setTimeout(()=>a.rq1(p.addr-9,0x4f),i*120)}}
   });
   paint();
  },Math.max(0,delayMs||0));

@@ -7,11 +7,11 @@ if(!xa)return;
 const BASE=xa.encodedAddress('18000000');
 const region=(label,hex,size)=>({label,addr:xa.encodedAddress(hex),size});
 // Contiguous documented blocks ONLY; do not assume undocumented gaps contain a writable patch.
-const blocks=[region('Program Common (includes name)','18000000',0x57),region('Program Reverb','18000200',0x64),region('Program Delay','18000300',0x7c),region('Program Vocoder','18000400',0x2b),region('Program TFX1 (header + params)','18000500',0x40),region('Program TFX2 (header + params)','18000600',0x40),region('Arpeggio Common','18006000',8)];
+const blocks=[region('Program Common (includes name)','18000000',0x6b),region('Program Reverb','18000200',0x64),region('Program Delay','18000300',0x7c),region('Program Vocoder','18000400',0x2b),region('Program TFX1 (header + params)','18000500',0x27),region('Program TFX2 (header + params)','18000600',0x27),region('Arpeggio Common','18006000',8)];
 for(let i=0;i<8;i++){
  const part=(i<4?'Analog ':'Digital ')+(i%4+1);
  const h=xa.addrBytes(BASE+((0x20+i)*128**2)).map(n=>n.toString(16).padStart(2,'0')).join('');
- blocks.push(region(part+' Part Settings',h,0x14));
+ blocks.push(region(part+' Part Settings',h,0x4f));
  const eq=xa.addrBytes(BASE+((0x30+i)*128**2)).map(n=>n.toString(16).padStart(2,'0')).join('');
  blocks.push(region(part+' EQ',eq,8));
 }
@@ -22,21 +22,22 @@ for(let i=0;i<16;i++){
  const suffix=kind+' '+num;
  if(i>=8){
   const partAddr=xa.addrBytes(BASE+(0x20+i)*128**2).map(v=>v.toString(16).padStart(2,'0')).join('');
-  blocks.push(region(suffix+' Part Settings',partAddr,0x14));
+  blocks.push(region(suffix+' Part Settings',partAddr,0x4f));
  }
  const zoneAddr=xa.addrBytes(BASE+(0x40+i)*128**2).map(v=>v.toString(16).padStart(2,'0')).join('');
  blocks.push(region(suffix+' Zone',zoneAddr,0x21));
 }
-// Separate temporary tone data; documented offsets 00 00 00 (common),
-// 00 01 00 (analog partial), 00 02 00 (MFX), 00 20-22 00 (digital partials).
+// Temporary tone data: part block 19/1A xx 00 00 + Temporary Tone offset (02 00 00 analog, 01 00 00 digital),
+// then the tone's own offsets (00 00 00 common, 00 01 00 analog partial, 00 02 00 MFX, 00 20-22 00 digital partials, 00 50 00 modify).
+// RQ1 is only answered for the exact block start and size from the Parameter Address Map.
 for(let i=0;i<8;i++){
- const base=xa.encodedAddress(i<4?'19000000':'1a000000')+(i%4)*0x20*128**2;
+ const base=xa.encodedAddress(i<4?'19000000':'1a000000')+(i%4)*0x20*128**2+(i<4?2:1)*128**2;
  const add=(name,offset,size)=>{const h=xa.addrBytes(base+offset).map(v=>v.toString(16).padStart(2,'0')).join('');blocks.push(region(name,h,size))};
  const prefix=(i<4?'Analog ':'Digital ')+(i%4+1);
- add(prefix+' Tone Common',0,32);
- add(prefix+' MFX (type and parameters, partial region)',2*128,48);
- if(i<4)add(prefix+' Tone Partial',128,48);
- else for(let j=0;j<3;j++)add(prefix+' Partial '+(j+1),(0x20+j)*128,48);
+ add(prefix+' Tone Common',0,i<4?0x4e:0x40);
+ add(prefix+' MFX (type and parameters)',2*128,0x91);/* doc: Total Size 00 00 01 11 in 7-bit bytes = 1*128+0x11 = 145 (0x91), not 0x111 */
+ if(i<4)add(prefix+' Tone Partial',128,0x65);
+ else{for(let j=0;j<3;j++)add(prefix+' Partial '+(j+1),(0x20+j)*128,0x3d);add(prefix+' Tone Modify',0x50*128,0x25)}
 }
 // Additional arpeggio note pattern blocks (16 slots; each block read conservatively).
 for(let i=0;i<16;i++){

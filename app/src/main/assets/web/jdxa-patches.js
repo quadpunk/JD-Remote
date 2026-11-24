@@ -13,7 +13,7 @@ const cs=a=>(128-a.reduce((x,y)=>x+y,0)%128)%128;
 const send=b=>{const a=api();return a&&a.connected()&&a.send(b)};
 function select(mem,i){const lsb=(mem==='USB'?32:0)+(i>=128?1:0),c=ch();
  return send([0xb0|c,0,85])&&send([0xb0|c,32,lsb])&&send([0xc0|c,i%128])}
-function readName(){const a=[0x18,0,0,0],s=[0,0,0,12];return send([0xf0,0x41,dev(),0,0,0,0x0f,0x11,...a,...s,cs([...a,...s]),0xf7])}
+function readName(){const a=[0x18,0,0,0],s=[0,0,0,0x6b];return send([0xf0,0x41,dev(),0,0,0,0x0f,0x11,...a,...s,cs([...a,...s]),0xf7])}
 const prevRx=window.JDXiPerformanceReceive;
 window.JDXiPerformanceReceive=m=>{try{prevRx&&prevRx(m)}catch{}
  if(m.length<26||m[0]!==0xf0||m[1]!==0x41||m[6]!==0x0f||m[7]!==0x12)return;

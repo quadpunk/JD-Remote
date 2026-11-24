@@ -35,9 +35,9 @@ class WebMidiBridge(
     /** Ports are shared with the native sequencer, so closing from the page only stops forwarding input. */
     @JavascriptInterface fun close(id: String) { openInputs.remove(id) }
 
-    @JavascriptInterface fun send(id: String, hex: String, delayMs: Double) {
+    /** Returns false when the message could not be written to the port (closed, unplugged); android-midi.js then throws like Web MIDI does. */
+    @JavascriptInterface fun send(id: String, hex: String, delayMs: Double): Boolean =
         engine.sendTo(id, unhex(hex), delayMs)
-    }
 
     /** Called by android-midi.js with the page's current Appearance theme name. */
     @JavascriptInterface fun setTheme(name: String) { web.post { Jd.theme = name } }

@@ -49,7 +49,8 @@ async function envReport(){
 /* ---------- ports ---------- */
 const isJd=p=>true?/JD.?-?XA/i.test(p?.name||''):/JD.?-?XA/i.test(p?.name||'');
 const isThrough=p=>/through/i.test(p?.name||'');
-function pickPort(ports,wantedId){return ports.find(x=>wantedId&&x.id===wantedId)||ports.find(x=>isJd(x)&&!isThrough(x))||ports.find(x=>!isThrough(x))||ports[0]}
+const isSoftSynth=p=>/wavetable|gs synth|microsoft|loopmidi|iac driver|virtual/i.test(p?.name||'');
+function pickPort(ports,wantedId){return ports.find(x=>wantedId&&x.id===wantedId)||ports.find(x=>isJd(x)&&!isThrough(x))||ports.find(x=>!isThrough(x)&&!isSoftSynth(x))||ports.find(x=>!isThrough(x))||ports[0]}
 function populateMidiPorts(){
  const outputs=[...access.outputs.values()],inputs=[...access.inputs.values()];
  for(const [id,ports] of [['midi-output',outputs],['midi-input',inputs]]){
@@ -129,7 +130,8 @@ $('connect').onclick=async()=>{
    catch(e){midiDiagnostics('Input "'+inp.name+'" could not be opened ('+(e.name||'error')+'): sending works, readback does not.',true)}
   }
   status('Connected: '+output.name);
-  midiDiagnostics('Connected. Output: "'+output.name+'" · input: '+(input?'"'+input.name+'"':'NONE')+' · SysEx: '+(sysexAllowed?'allowed':'NOT allowed')+'. Try "Send test note" or "Test JD-XA reply".',!sysexAllowed||!input);
+  const nameWarn=isJd(output)?'':' WARNING: the output name does not contain "JD-XA". With USB Drv = GENERIC the operating system may name the port differently (e.g. "USB Audio Device"): select the synth\'s own input and output in the lists above and press Connect again.';
+  midiDiagnostics('Connected. Output: "'+output.name+'" · input: '+(input?'"'+input.name+'"':'NONE')+' · SysEx: '+(sysexAllowed?'allowed':'NOT allowed')+'. Try "Send test note" or "Test JD-XA reply".'+nameWarn,!sysexAllowed||!input||!isJd(output));
   if(false)setTimeout(()=>{autoRead();setTimeout(()=>ovRead(true),600)},300);
   window.dispatchEvent(new Event('jdxi-connected'));
  }catch(e){status('Connection failed');midiDiagnostics(e.message,true)}
@@ -340,6 +342,7 @@ let parameterCatalog={};
 function sendEditor(cmd,addr,payload){const a=[(addr>>>24)&127,(addr>>>16)&127,(addr>>>8)&127,addr&127],id=hex($('deviceid').value,1)[0],checksum=(128-([...a,...payload].reduce((x,y)=>x+y,0)%128))%128;return send([240,65,id,0,0,0,15,cmd,...a,...payload,checksum,247])}
 /* One parameter editor per panel: the Advanced tone editor (Digital 1/2, Analog) and the separate Arpeggio editor.
    c = {part:()=>name, partial:<select|null>, block:<select>, grid:<div>, force:<checkbox>, read:<button>} */
+const wavTxt=(p,v)=>p.bytes===4?(v===0?'OFF':String(v).padStart(3,'0')):String(v);
 function makeEditor(c){
  const type=()=>c.part().startsWith('digital')?'digital':c.part();
  const params=()=>parameterCatalog[type()]?.[c.block.value]||[];
@@ -371,13 +374,13 @@ function makeEditor(c){
    ctrl=document.createElement('input');ctrl.type='range';ctrl.min=p.min;ctrl.max=p.max;ctrl.value=value;
   }
   ctrl.disabled=!known&&!force;
-  out=document.createElement('output');out.textContent=p.toggle?(value>p.min?'On':'Off'):p.options?(p.options[value-p.min]||value):String(value);
+  out=document.createElement('output');out.textContent=p.toggle?(value>p.min?'On':'Off'):p.options?(p.options[value-p.min]||value):wavTxt(p,value);
   const controls=document.createElement('div');controls.className='editor-control';
   controls.append(ctrl,out);
   let lastValue=null;
   const push=()=>{
    const v=p.toggle?(ctrl.checked?p.max:p.min):Math.max(p.min,Math.min(p.max,Math.round(+ctrl.value)));
-   if(p.toggle)out.textContent=v>p.min?'On':'Off';else{ctrl.value=v;out.textContent=p.options?(p.options[v-p.min]||v):String(v)}
+   if(p.toggle)out.textContent=v>p.min?'On':'Off';else{ctrl.value=v;out.textContent=p.options?(p.options[v-p.min]||v):wavTxt(p,v)}
    if(v===lastValue&&!p.toggle)return;
    try{
     const payload=p.bytes===4?[(v>>12)&15,(v>>8)&15,(v>>4)&15,v&15]:[v];
@@ -540,6 +543,7 @@ const OV_ONOFF=['OFF','ON'],OV_LFO=['TRI','SIN','SAW','SQR','S&H','RND'];
 const ovSemi=v=>(v-64>0?'+':'')+(v-64),ovPan=v=>v===64?'C':v<64?'L'+(64-v):'R'+(v-64);
 const OV_OVERRIDE={
  'digital.osc.0':{options:['SAW','SQUARE','PW-SQUARE','TRIANGLE','SINE','NOISE','SUPER-SAW','PCM']},
+ 'digital.osc.53':{display:v=>v===0?'OFF':String(v).padStart(3,'0')},
  'digital.osc.3':{display:ovSemi},'digital.osc.4':{display:ovSemi},
  'digital.filterMain.10':{options:['BYPASS','LPF','HPF','BPF','PKG','LPF2','LPF3','LPF4']},
  'digital.filterMain.11':{options:['-12 dB','-24 dB']},
@@ -610,10 +614,13 @@ function ovBuild(){
      if(!sendEditor(18,addrs[0],payload))return;
      last=v;editorReadback.set(addrs[0],v);
      addrs.slice(1).forEach((a,i)=>setTimeout(()=>{try{if(sendEditor(18,a,payload))editorReadback.set(a,v)}catch(e){log(e.message)}},10*(i+1)));
-     /* choosing PCM while the wave number is OFF would be silent: select wave 001 */
+     /* choosing PCM while the wave number is OFF would be silent: select wave 001.
+        If the wave number has never been read, read the partial first instead of guessing (so a real wave is never overwritten). */
      if(type==='digital'&&group==='osc'&&p.off===0&&v===7)addrs.forEach((a,i)=>setTimeout(()=>{
       const wa=a+0x35;
-      if(editorReadback.get(wa)===0){try{if(sendEditor(18,wa,[0,0,0,1])){editorReadback.set(wa,1);const w=ovWidgets.get(wa);if(w){w.set(1);w.show()}}}catch(e){log(e.message)}}
+      const fix=()=>{if(editorReadback.get(wa)===0){try{if(sendEditor(18,wa,[0,0,0,1])){editorReadback.set(wa,1);const w=ovWidgets.get(wa);if(w){w.set(1);w.show()}}}catch(e){log(e.message)}}};
+      if(editorReadback.has(wa))fix();
+      else{try{sendEditor(17,a,[0,0,0,0x39])}catch(e){log(e.message)}setTimeout(fix,300)}
      },10*(i+1)+20));
     }catch(e){log(e.message)}
    };

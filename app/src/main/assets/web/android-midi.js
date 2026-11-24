@@ -20,7 +20,7 @@ class Output extends Port{
   if(this.state!=='connected')throw new DOMException('Disconnected','InvalidStateError');
   const a=data instanceof Uint8Array?data:Uint8Array.from(data);
   const delay=ts&&ts>performance.now()?Math.min(ts-performance.now(),5000):0;
-  B.send(this.id,hex(a),delay);
+  if(!B.send(this.id,hex(a),delay))throw new DOMException('MIDI send failed (port closed or device removed)','InvalidStateError');
  }
  clear(){}
 }

@@ -1,11 +1,11 @@
 (()=>{'use strict';
 /* JD-XA Synth page: tone overview, advanced editor, arpeggio, My patches.
-   Addresses/ranges from Roland JD-XA MIDI Implementation v1.00 (Temporary Tone 19/1A, Program 18). Model ID 00 00 00 0F. */
+   Addresses/ranges from Roland JD-XA MIDI Implementation v1.00 (Temporary Tone 19/1A + tone offset 02 00 00 analog / 01 00 00 digital, Program 18). Model ID 00 00 00 0F. */
 const $=id=>document.getElementById(id),api=()=>window.JDXiPerformance;
 const ls={g:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},s:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
 const num=a=>((a[0]*128+a[1])*128+a[2])*128+a[3],b4=n=>[Math.floor(n/2097152)&127,Math.floor(n/16384)&127,Math.floor(n/128)&127,n&127];
 const hx=n=>b4(n).map(x=>x.toString(16).padStart(2,'0')).join(' ').toUpperCase();
-const PARTS=[0,1,2,3].map(i=>({id:'a'+i,name:'Analog '+(i+1),an:true,base:num([0x19,i*0x20,0,0]),i,ch:i})).concat([0,1,2,3].map(i=>({id:'d'+i,name:'Digital '+(i+1),an:false,base:num([0x1a,i*0x20,0,0]),i,ch:4+i})));
+const PARTS=[0,1,2,3].map(i=>({id:'a'+i,name:'Analog '+(i+1),an:true,base:num([0x19,i*0x20+2,0,0]),i,ch:i})).concat([0,1,2,3].map(i=>({id:'d'+i,name:'Digital '+(i+1),an:false,base:num([0x1a,i*0x20+1,0,0]),i,ch:4+i})));
 const NOTE=['16','12','8','4','2','1','3/4','2/3','1/2','3/8','1/3','1/4','3/16','1/6','1/8','3/32','1/12','1/16','1/24','1/32'],SH=['TRI','SIN','SAW','SQR','S&H','RND'],OSCS=['OSC1+2','OSC1','OSC2'];
 const sg=v=>(v>0?'+':'')+v;
 const N=(o,l,max=127)=>({o,l,min:0,max}),B=(o,l,min=1,max=127)=>({o,l,min,max,f:v=>sg(v-64)}),K=(o,l)=>({o,l,min:54,max:74,f:v=>sg((v-64)*10)});
@@ -15,7 +15,7 @@ const DST=['OFF','CUTOFF','RESO','AMP-LEV','X-MOD','PIT-OSC1','PIT-OSC2','PW-OSC
 const lfo=(b,k)=>[O(b,'Shape',SH),N(b+1,'Rate'),N(b+2,'Fade time'),S(b+3,'Tempo sync'),O(b+4,'Sync note',NOTE),O(b+5,'Pitch destination',OSCS),B(b+6,'Pitch depth'),B(b+7,'Filter depth'),B(b+8,'Amp depth'),O(b+9,'PW destination',[...OSCS,'OFF']),S(b+k,'Key trigger')];
 const osc=b=>[O(b,'Waveform',['SAW','SQR','PW-SQR','TRI','SIN']),O(b+1,'Pitch range',['0 oct','1 oct','2 oct','3 oct','4 oct']),B(b+2,'Pitch (semi)',16,112),B(b+3,'Fine (cent)',14,114),N(b+4,'Pulse width'),N(b+5,'PWM depth'),N(b+7,'Level'),B(b+8,'Pitch env velocity'),N(b+9,'Pitch env attack'),N(b+10,'Pitch env decay'),B(b+11,'Pitch env depth')];
 const mx=[];for(let m=0;m<4;m++){const b=0x2a+m*9;mx.push({n:'Matrix control '+(m+1),c:'ac',p:[SRC(b,'Source'),...[0,1,2,3].flatMap(k=>[O(b+1+k*2,'Destination '+(k+1),DST),B(b+2+k*2,'Sens '+(k+1))])]})}
-const AN={ac:{off:[0,0,0],size:0x4e},ap:{off:[1,0,0],size:0x65}};
+const AN={ac:{off:[0,0,0],size:0x4e},ap:{off:[0,1,0],size:0x65}};
 const AG=[
 {n:'Oscillator 1',c:'ap',e:1,p:osc(0x2a)},{n:'Oscillator 2',c:'ap',e:1,p:osc(0x36)},
 {n:'Oscillator common',c:'ap',p:[S(0x25,'Sync'),S(0x26,'Ring'),N(0x27,'Cross mod'),O(0x28,'Mod source',['OSC2','AUX']),S(0x29,'Phase sync'),O(0x42,'Pitch env select',OSCS),N(0x43,'AUX level'),O(0x44,'AUX source',['White noise','Pink noise','Digital part','Mic'])]},

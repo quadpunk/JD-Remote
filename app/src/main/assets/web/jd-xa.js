@@ -56,17 +56,17 @@ const encodedAddress=hex=>{if(!/^[0-7][0-9a-f]{7}$/i.test(hex))throw Error('Inva
 const addrDisplay=n=>addrBytes(n).map(x=>x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
 function deviceId(){const v=$('xa-device').value.trim();if(!/^[0-9a-f]{1,2}$/i.test(v))throw Error('Device ID måste anges i hex (exempel 10).');const n=parseInt(v,16);if(n<16||n>31)throw Error('JD-XA Device ID: 10–1F hex (Roland Device ID).');return n}
 function sx(cmd,addr,payload){const a=hex4(addr);if([...a,...payload].some(v=>v>127||v<0))throw Error('Sysex innehåller otillåtet MIDI-datavärde.');const sum=[...a,...payload].reduce((s,v)=>s+v,0);return send([240,65,deviceId(),0,0,0,15,cmd,...a,...payload,(128-sum%128)%128,247])}
-function rq(addr,count){if(!Number.isInteger(count)||count<1||count>64)throw Error('Tillåten läslängd 1–64.');pending={addr,count,at:Date.now()};$('xa-readout').textContent='Waiting for JD-XA DT1 response…';return sx(0x11,addr,hex4(count))}
+function rq(addr,count){if(!Number.isInteger(count)||count<1||count>0x200)throw Error('Tillåten läslängd 1–512 (JD-XA kräver exakt blockstorlek enligt Parameter Address Map).');pending={addr,count,at:Date.now()};$('xa-readout').textContent='Waiting for JD-XA DT1 response…';return sx(0x11,addr,hex4(count))}
 function getAddr(){const base=encodedAddress($('xa-region').value);const tok=$('xa-offset').value.trim().split(/[\s,]+/);if(tok.length!==4||tok.some(v=>!/^[0-7]?[0-9a-f]$/i.test(v)))throw Error('Offset: exakt fyra hex-byte 00–7F.');const off=tok.reduce((n,v)=>n*128+parseInt(v,16),0);return base+off}
 $('xa-read').onclick=()=>{try{const addr=getAddr(),n=+$('xa-length').value;if(rq(addr,n))$('xa-sysex-status').textContent='RQ1 → '+addrDisplay(addr)+' ('+n+' bytes)'}catch(e){$('xa-sysex-status').textContent=e.message}};
-$('xa-test').onclick=()=>{try{if(rq(encodedAddress('18000000'),1))$('xa-sysex-status').textContent='Test-RQ1 skickad; väntar på DT1 från JD-XA.'}catch(e){$('xa-sysex-status').textContent=e.message}};
-$('xa-rq').onclick=()=>{try{if(rq(encodedAddress('18000000'),16))$('xa-sysex-status').textContent='Läser temporary program common (16 bytes).'}catch(e){$('xa-sysex-status').textContent=e.message}};
+$('xa-test').onclick=()=>{try{if(rq(encodedAddress('18000000'),0x6b))$('xa-sysex-status').textContent='Test-RQ1 skickad (Program Common, 0x6B byte); väntar på DT1 från JD-XA.'}catch(e){$('xa-sysex-status').textContent=e.message}};
+$('xa-rq').onclick=()=>{try{if(rq(encodedAddress('18000000'),0x6b))$('xa-sysex-status').textContent='Läser temporary program common (107 byte).'}catch(e){$('xa-sysex-status').textContent=e.message}};
 let identified=false;
 function invalidateIdentity(reason){identified=false;const el=$('xa-ident-status');if(el)el.textContent=reason||'Identifiera JD-XA innan skrivning.';}
 function receive(bytes){
  // Universal Identity Reply: F0 7E dev 06 02 41 0F 03 00 00 00 03 00 00 F7
  if(bytes[0]===240&&bytes[1]===126&&bytes[3]===6&&bytes[4]===2){
-   const isXA=bytes.length>=16&&bytes.at(-1)===247&&bytes[5]===65&&bytes[6]===15&&bytes[7]===3;
+   const isXA=bytes.length>=15&&bytes.at(-1)===247&&bytes[5]===65&&bytes[6]===15&&bytes[7]===3;
    identified=isXA;
    $('xa-ident-status').textContent=isXA?'JD-XA IDENTIFIERAD · Device '+bytes[2].toString(16).toUpperCase(): 'Fel MIDI-enhet svarade på identifieringen. JD-XA kunde inte bekräftas.';
    window.dispatchEvent(new CustomEvent('jdxa-identity',{detail:{isXA,bytes:Array.from(bytes)}}));return;

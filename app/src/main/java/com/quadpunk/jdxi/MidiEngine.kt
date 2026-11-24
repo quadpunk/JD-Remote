@@ -35,6 +35,8 @@ class MidiEngine(ctx: Context) {
     private val recvPorts = ConcurrentHashMap<String, MidiOutputPort>()
     private val devices = ConcurrentHashMap<Int, MidiDevice>()
     private val opening = ConcurrentHashMap<Int, CountDownLatch>()
+    /** How many times opening a device returned null (busy / not ready yet); it is retried a few times. */
+    private val openFailures = ConcurrentHashMap<Int, Int>()
 
     @Volatile var ports: List<PortRef> = emptyList(); private set
     var status by mutableStateOf("Looking for MIDI devices…"); private set
@@ -75,13 +77,25 @@ class MidiEngine(ctx: Context) {
         opening[info.id] = latch
         m.openDevice(info, { dev ->
             try {
-                if (dev != null) attach(info, dev)
+                if (dev != null) { openFailures.remove(info.id); attach(info, dev) }
+                else scheduleRetry(info)
             } finally {
                 opening.remove(info.id)
                 latch.countDown()
                 refresh()
             }
         }, main)
+    }
+
+    /** The system sometimes hands back null right after the USB device appears (or while another app still holds it). Try again a few times. */
+    private fun scheduleRetry(info: MidiDeviceInfo) {
+        val n = (openFailures[info.id] ?: 0) + 1
+        openFailures[info.id] = n
+        if (n > 3) return
+        main.postDelayed({
+            val stillThere = mm?.devices?.any { it.id == info.id } == true
+            if (stillThere && !devices.containsKey(info.id)) openDevice(info)
+        }, 1200L * n)
     }
 
     private fun attach(info: MidiDeviceInfo, dev: MidiDevice) {
@@ -110,27 +124,33 @@ class MidiEngine(ctx: Context) {
         sendPorts.keys.filter { it.startsWith(prefixO) }.forEach { runCatching { sendPorts.remove(it)?.close() } }
         recvPorts.keys.filter { it.startsWith(prefixI) }.forEach { runCatching { recvPorts.remove(it)?.close() } }
         runCatching { devices.remove(deviceId)?.close() }
+        openFailures.remove(deviceId)
     }
 
     private fun refresh() {
         val m = mm ?: return
         val list = ArrayList<PortRef>()
-        for (info in m.devices) {
+        val infos = m.devices
+        for (info in infos) {
             val name = deviceName(info)
             val maker = info.properties.getString(MidiDeviceInfo.PROPERTY_MANUFACTURER) ?: ""
             val multi = info.ports.size > 2
             for (p in info.ports) {
                 val send = p.type == MidiDeviceInfo.PortInfo.TYPE_INPUT
+                val id = (if (send) "o" else "i") + ":${info.id}:${p.portNumber}"
+                // A port that could not be opened would only give "Port busy" when chosen, so hide it
+                // (ports of a device that is still being opened stay listed; openPort() waits for them).
+                if (!sendPorts.containsKey(id) && !recvPorts.containsKey(id) && !opening.containsKey(info.id)) continue
                 val full = if (multi && !p.name.isNullOrBlank()) "$name ${p.name}" else name
-                list.add(PortRef((if (send) "o" else "i") + ":${info.id}:${p.portNumber}", full, maker, send, info.id))
+                list.add(PortRef(id, full, maker, send, info.id))
             }
         }
         ports = list
         val out = defaultSend()
         status = when {
             out != null -> "MIDI: ${out.name}"
-            list.isEmpty() -> "No MIDI device found. Connect the JD-Xi or JD-XA with a USB cable."
-            else -> "MIDI device found, but no output port could be opened"
+            infos.isEmpty() -> "No MIDI device found. Connect the JD-Xi or JD-XA with a USB cable."
+            else -> "MIDI device found, but no port could be opened (is another app using it?)"
         }
         onPortsChanged?.invoke()
     }
@@ -141,10 +161,19 @@ class MidiEngine(ctx: Context) {
         return a.toString()
     }
 
+    private val jdName = Regex("JD.?-?X[ia]|Roland", RegexOption.IGNORE_CASE)
+    private val softPort = Regex("through|peripheral|virtual|wavetable|gs synth", RegexOption.IGNORE_CASE)
+
+    /**
+     * The port the native sequencer sends to: the JD-Xi / JD-XA by name, then anything made by Roland (with USB Drv = GENERIC
+     * the product string does not always contain the model), then any real port. Software / virtual ports and MIDI-through
+     * ports come last, so they are never picked while a real synth is connected.
+     */
     private fun defaultSend(): PortRef? {
         val sendable = ports.filter { it.sendable && sendPorts.containsKey(it.id) }
-        return sendable.firstOrNull { Regex("JD.?-?X[ia]|Roland", RegexOption.IGNORE_CASE).containsMatchIn(it.name) && !it.name.contains("through", true) }
-            ?: sendable.firstOrNull { !it.name.contains("through", true) }
+        return sendable.firstOrNull { jdName.containsMatchIn(it.name) && !softPort.containsMatchIn(it.name) }
+            ?: sendable.firstOrNull { it.manufacturer.contains("Roland", true) && !softPort.containsMatchIn(it.name) }
+            ?: sendable.firstOrNull { !softPort.containsMatchIn(it.name) }
             ?: sendable.firstOrNull()
     }
 
@@ -158,12 +187,13 @@ class MidiEngine(ctx: Context) {
     }
 
     /** [delayMs] > 0 schedules the message on the Android MIDI clock so that timing stays tight even if the WebView jitters. */
-    fun sendTo(id: String, data: ByteArray, delayMs: Double) {
-        val port = sendPorts[id] ?: return
-        try {
+    fun sendTo(id: String, data: ByteArray, delayMs: Double): Boolean {
+        val port = sendPorts[id] ?: return false
+        return try {
             if (delayMs > 0.5) port.send(data, 0, data.size, System.nanoTime() + (delayMs * 1_000_000).toLong())
             else port.send(data, 0, data.size)
-        } catch (_: Exception) {}
+            true
+        } catch (_: Exception) { false }
     }
 
     // ───── used by the native sequencer ─────

@@ -37,17 +37,21 @@ case 'source':return value===0?'SYSTEM':value===1?'PROGRAM':'Raw: '+value;
 case 'tempo':{if(data.some(v=>v>15))return 'Invalid nibble data';const raw=data.reduce((s,n)=>s*16+n,0);return (raw/100).toFixed(2)+' BPM (raw '+raw+')'}
 default:return String(value);
 }}
+// RQ1 is only answered for exact block start + size, so read the whole block and cut the value out.
+const BLK=[['18000000',0x6b],['02000100',0x0f],['02000200',0x0b],['02000300',0x20]];
+const blockOf=hex=>{const a=xa.encodedAddress(hex);let r=null;for(const [h,sz] of BLK){const b=xa.encodedAddress(h);if(a>=b&&a<b+sz)r={addr:b,size:sz,off:a-b}}return r};
 $('xa-inspect-read').onclick=()=>{
  const item=defs.find(d=>d[1]===select.value);if(!item)return;
- const [name,hex,count]=item;requested={name,hex,count,at:Date.now()};
- try{const ok=xa.rq(xa.encodedAddress(hex),count);view.textContent=ok?'RQ1: '+name+'\nAddress: '+hex.match(/../g).join(' ')+'\nWaiting for DT1…':'MIDI not connected or SysEx blocked.'}catch(e){view.textContent=e.message}
+ const [name,hex,count]=item,blk=blockOf(hex);if(!blk){view.textContent='Ingen känd blockstorlek för '+hex;return}
+ requested={name,hex,count,blk,at:Date.now()};
+ try{const ok=xa.rq(blk.addr,blk.size);view.textContent=ok?'RQ1: '+name+'\nBlock: '+xa.addrBytes(blk.addr).map(x=>x.toString(16).padStart(2,'0').toUpperCase()).join(' ')+' ('+blk.size+' byte), offset '+blk.off+'\nWaiting for DT1…':'MIDI not connected or SysEx blocked.'}catch(e){view.textContent=e.message}
 };
 window.addEventListener('jdxa-dt1',ev=>{
- const {addr,body}=ev.detail;if(!requested)return;
- const def=defs.find(d=>d[1]===requested.hex);if(!def||addr!==xa.encodedAddress(def[1]))return;
- const [name,address,count,type]=def;
- if(body.length<count){view.textContent='Partial DT1 response: '+body.length+'/'+count+' bytes. Retry.';return}
- const val=decode(type,body.slice(0,count)),result={parameter:name,address,bytes:body.slice(0,count),value:val,time:new Date().toISOString()};
+ const {addr,body}=ev.detail;if(!requested||addr!==requested.blk.addr)return;
+ const def=defs.find(d=>d[1]===requested.hex);if(!def)return;
+ const [name,address,count,type]=def,off=requested.blk.off;
+ if(body.length<off+count){view.textContent='Partial DT1 response: '+body.length+'/'+(off+count)+' bytes. Retry.';return}
+ const bytes=body.slice(off,off+count),val=decode(type,bytes),result={parameter:name,address,bytes,value:val,time:new Date().toISOString()};
  recorded.push(result);if(recorded.length>1000)recorded.shift();
  view.textContent='MATCHED DT1 \u2713\n'+name+'\nAddress: '+address.match(/../g).join(' ')+'\nRaw: '+hex(result.bytes)+'\nDecoded: '+val+'\n\nRead-only. No write performed.';
  requested=null;
